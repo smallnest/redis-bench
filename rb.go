@@ -5,39 +5,58 @@ import (
 	"fmt"
 	"math/rand"
 	"runtime"
+	"strconv"
 	"strings"
+
+	"golang.org/x/time/rate"
 
 	"github.com/smallnest/redbench"
 )
 
 var (
-	s        = flag.String("s", "10.41.15.226:6000", "server address")
-	c        = flag.Int("c", 100, "number of concurrent connections (default 100)")
-	threads  = flag.Int("T", runtime.GOMAXPROCS(-1), "threads count to run (default logical cpu cores)")
-	d        = flag.Int("d", 16, "data size of SET/GET/... value in bytes (default 16)")
-	r        = flag.Int("r", 10000, "use random keys for SET/GET (default 10000)")
-	n        = flag.Int("n", 1000000, "total number of requests (default 1000000)")
+	h        = flag.String("host", "127.0.0.1", "server address")
+	p        = flag.Int("p", 6379, "server port")
+	s        = flag.String("s", "10.41.15.226:6000", "server address (overrides host and port)")
+	c        = flag.Int("c", 100, "number of concurrent connections")
+	l        = flag.Float64("l", 10000.0, "max throughputs (requests/s)")
+	cpus     = flag.Int("cpu", runtime.GOMAXPROCS(-1), "max cpus count to run (default logical cpu cores)")
+	d        = flag.Int("d", 16, "data size of SET/GET/... value in bytes")
+	r        = flag.Int("r", 10000, "use random keys for SET/GET")
+	n        = flag.Int("n", 1000000, "total number of requests")
 	t        = flag.String("t", "set", "test type. only support set|get")
-	pipeline = flag.Int("P", 1, "pipeline <numreq> requests. default 1 (no pipeline).")
+	pipeline = flag.Int("P", 1, "pipeline <numreq> requests. (default 1 no pipeline).")
 )
 
 func main() {
 	flag.Parse()
 
-	runtime.GOMAXPROCS(*threads)
+	// address
+	if *s == "" {
+		if *h == "" {
+			*h = "127.0.0.1"
+		}
+		*s = *h + ":" + strconv.Itoa(*p)
+	}
 
+	// set max CPU
+	runtime.GOMAXPROCS(*cpus)
+
+	// prepare data
 	key := func() string {
 		return fmt.Sprintf("mystring:%012d", rand.Intn(*r))
 	}
 	value := strings.Repeat("A", *d)
 
+	// bench options
 	opts := *redbench.DefaultOptions
 	opts.Clients = *c
 	opts.Requests = *n
 	opts.Pipeline = *pipeline
+	if *l > 0 {
+		opts.Limter = rate.NewLimiter(rate.Limit(*l), 1)
+	}
 
 	*t = strings.ToLower(*t)
-
 	switch *t {
 	case "set":
 		redbench.Bench("SET", *s, &opts, nil, func(buf []byte) []byte {
