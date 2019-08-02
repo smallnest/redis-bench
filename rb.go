@@ -16,7 +16,7 @@ import (
 var (
 	h        = flag.String("host", "127.0.0.1", "server address")
 	p        = flag.Int("p", 6379, "server port")
-	s        = flag.String("s", "10.41.15.226:6000", "server address (overrides host and port)")
+	s        = flag.String("s", "", "server address (overrides host and port)")
 	c        = flag.Int("c", 100, "number of concurrent connections")
 	l        = flag.Float64("l", 10000.0, "max throughputs (requests/s)")
 	cpus     = flag.Int("cpu", runtime.GOMAXPROCS(-1), "max cpus count to run (default logical cpu cores)")
@@ -45,6 +45,10 @@ func main() {
 	key := func() string {
 		return fmt.Sprintf("mystring:%012d", rand.Intn(*r))
 	}
+	numkey := func() string {
+		return fmt.Sprintf("mynum:%012d", rand.Intn(*r))
+	}
+
 	value := strings.Repeat("A", *d)
 
 	// bench options
@@ -58,6 +62,10 @@ func main() {
 
 	*t = strings.ToLower(*t)
 	switch *t {
+	case "ping":
+		redbench.Bench("PING", *s, &opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "PING")
+		})
 	case "set":
 		redbench.Bench("SET", *s, &opts, nil, func(buf []byte) []byte {
 			return redbench.AppendCommand(buf, "SET", key(), value)
@@ -65,6 +73,26 @@ func main() {
 	case "get":
 		redbench.Bench("GET", *s, &opts, nil, func(buf []byte) []byte {
 			return redbench.AppendCommand(buf, "GET", key())
+		})
+	case "getset":
+		redbench.Bench("SET", *s, &opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "GETSET", key(), value)
+		})
+	case "mset":
+		redbench.Bench("MSET", *s, &opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "MSET", key(), value, key(), value, key(), value)
+		})
+	case "mget":
+		redbench.Bench("MGET", *s, &opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "MGET", key(), key(), key())
+		})
+	case "incr":
+		redbench.Bench("INCR", *s, &opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "INCR", numkey())
+		})
+	case "decr":
+		redbench.Bench("DECR", *s, &opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "DECR", numkey())
 		})
 	}
 }
