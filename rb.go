@@ -22,6 +22,7 @@ var (
 	cpus     = flag.Int("cpu", runtime.GOMAXPROCS(-1), "max cpus count to run (default logical cpu cores)")
 	d        = flag.Int("d", 16, "data size of SET/GET/... value in bytes")
 	r        = flag.Int("r", 10000, "use random keys for SET/GET")
+	f        = flag.Int("f", 100, "Use random fields for SADD/HSET/... (default 100)")
 	n        = flag.Int("n", 1000000, "total number of requests")
 	t        = flag.String("t", "set", "Only run the comma separated list of tests.")
 	pipeline = flag.Int("P", 1, "pipeline <numreq> requests. (default 1 no pipeline).")
@@ -60,11 +61,17 @@ func main() {
 	}
 }
 
-func key() string {
-	return fmt.Sprintf("mystring:%012d", rand.Intn(*r))
+func keyN(n int) string {
+	return fmt.Sprintf("%0"+strconv.Itoa(n)+"d", rand.Intn(*r))
 }
-func numkey() string {
-	return fmt.Sprintf("mynum:%012d", rand.Intn(*r))
+func key() string {
+	return fmt.Sprintf("%d", rand.Intn(*r))
+}
+func keyField() string {
+	return fmt.Sprintf("%d", rand.Intn(*f))
+}
+func keyFieldN(n int) string {
+	return fmt.Sprintf("%0"+strconv.Itoa(n)+"d", rand.Intn(*f))
 }
 
 var value = strings.Repeat("A", *d)
@@ -79,37 +86,132 @@ var benches = map[string]benchFunc{
 	},
 	"set": func(name string, addr string, opts *redbench.Options) {
 		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
-			return redbench.AppendCommand(buf, "SET", key(), value)
+			return redbench.AppendCommand(buf, "SET", "mystring:"+keyN(12), value)
 		})
 	},
 	"get": func(name string, addr string, opts *redbench.Options) {
 		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
-			return redbench.AppendCommand(buf, "GET", key())
+			return redbench.AppendCommand(buf, "GET", "mystring:"+keyN(12))
 		})
 	},
 	"getset": func(name string, addr string, opts *redbench.Options) {
 		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
-			return redbench.AppendCommand(buf, "GETSET", key(), value)
+			return redbench.AppendCommand(buf, "GETSET", "mystring:"+keyN(12), value)
 		})
 	},
 	"mset": func(name string, addr string, opts *redbench.Options) {
 		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
-			return redbench.AppendCommand(buf, "MSET", key(), value, key(), value, key(), value)
+			return redbench.AppendCommand(buf, "MSET", "mystring:"+keyN(12), value, "mystring:"+keyN(12), value, "mystring:"+keyN(12), value)
 		})
 	},
 	"mget": func(name string, addr string, opts *redbench.Options) {
 		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
-			return redbench.AppendCommand(buf, "MGET", key(), key(), key())
+			return redbench.AppendCommand(buf, "MGET", "mystring:"+keyN(12), "mystring:"+keyN(12), "mystring:"+keyN(12))
 		})
 	},
 	"incr": func(name string, addr string, opts *redbench.Options) {
 		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
-			return redbench.AppendCommand(buf, "INCR", numkey())
+			return redbench.AppendCommand(buf, "INCR", "mynum:"+keyN(12))
 		})
 	},
 	"decr": func(name string, addr string, opts *redbench.Options) {
 		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
-			return redbench.AppendCommand(buf, "DECR", numkey())
+			return redbench.AppendCommand(buf, "DECR", "mynum:"+keyN(12))
+		})
+	},
+	"hset": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "HSET", "myhash:"+keyN(12), "field:"+keyFieldN(14), value)
+		})
+	},
+	"hget": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "HGET", "myhash:"+keyN(12), "field:"+keyFieldN(14))
+		})
+	},
+	"hdel": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "HDEL", "myhash:"+keyN(12), "field:"+keyFieldN(14))
+		})
+	},
+	"hmset": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "HMSET", "myhash:"+keyN(12), "field:"+keyFieldN(14), value, "field:"+keyFieldN(14), value, "field:"+keyFieldN(14), value)
+		})
+	},
+	"hmget": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "HMGET", "myhash:"+keyN(12), "field:"+keyFieldN(14), "field:"+keyFieldN(14), "field:"+keyFieldN(14))
+		})
+	},
+	"hkeys": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "HKEYS", "myhash:"+keyN(12))
+		})
+	},
+	"hvals": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "HVALS", "myhash:"+keyN(12))
+		})
+	},
+	"hgetall": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "HGETALL", "myhash:"+keyN(12))
+		})
+	},
+	"lpush": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "LPUSH", "mylist:"+keyN(12), value)
+		})
+	},
+	"lpop": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "LPOP", "mylist:"+keyN(12))
+		})
+	},
+	"rpush": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "RPUSH", "mylist:"+keyN(12), value)
+		})
+	},
+	"rpop": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "RPOP", "mylist:"+keyN(12))
+		})
+	},
+	"lrange": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "LRANGE", "mylist:"+keyN(12), "0", "1000")
+		})
+	},
+	"sadd": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "SADD", "myset::"+keyN(12), keyFieldN(14))
+		})
+	},
+	"spop": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "SPOP", "myset::"+keyN(12))
+		})
+	},
+	"smember": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "smember", "myset::"+keyN(12))
+		})
+	},
+	"sismember": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "SISMEMBERS", "myset::"+keyN(12), keyFieldN(14))
+		})
+	},
+	"zadd": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "ZADD", "mysortedset::"+keyN(12), key(), keyFieldN(14))
+		})
+	},
+	"zrem": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
+			return redbench.AppendCommand(buf, "ZREM", "mysortedset::"+keyN(12), keyFieldN(14))
 		})
 	},
 }
