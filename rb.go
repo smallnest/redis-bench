@@ -23,7 +23,7 @@ var (
 	d        = flag.Int("d", 16, "data size of SET/GET/... value in bytes")
 	r        = flag.Int("r", 10000, "use random keys for SET/GET")
 	n        = flag.Int("n", 1000000, "total number of requests")
-	t        = flag.String("t", "set", "test type. only support set|get")
+	t        = flag.String("t", "set", "Only run the comma separated list of tests.")
 	pipeline = flag.Int("P", 1, "pipeline <numreq> requests. (default 1 no pipeline).")
 )
 
@@ -41,16 +41,6 @@ func main() {
 	// set max CPU
 	runtime.GOMAXPROCS(*cpus)
 
-	// prepare data
-	key := func() string {
-		return fmt.Sprintf("mystring:%012d", rand.Intn(*r))
-	}
-	numkey := func() string {
-		return fmt.Sprintf("mynum:%012d", rand.Intn(*r))
-	}
-
-	value := strings.Repeat("A", *d)
-
 	// bench options
 	opts := *redbench.DefaultOptions
 	opts.Clients = *c
@@ -61,38 +51,65 @@ func main() {
 	}
 
 	*t = strings.ToLower(*t)
-	switch *t {
-	case "ping":
-		redbench.Bench("PING", *s, &opts, nil, func(buf []byte) []byte {
+	commands := strings.Split(*t, ",")
+	for _, cmd := range commands {
+		bench := benches[cmd]
+		if bench != nil {
+			bench(cmd, *s, &opts)
+		}
+	}
+}
+
+func key() string {
+	return fmt.Sprintf("mystring:%012d", rand.Intn(*r))
+}
+func numkey() string {
+	return fmt.Sprintf("mynum:%012d", rand.Intn(*r))
+}
+
+var value = strings.Repeat("A", *d)
+
+type benchFunc func(string, string, *redbench.Options)
+
+var benches = map[string]benchFunc{
+	"ping": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
 			return redbench.AppendCommand(buf, "PING")
 		})
-	case "set":
-		redbench.Bench("SET", *s, &opts, nil, func(buf []byte) []byte {
+	},
+	"set": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
 			return redbench.AppendCommand(buf, "SET", key(), value)
 		})
-	case "get":
-		redbench.Bench("GET", *s, &opts, nil, func(buf []byte) []byte {
+	},
+	"get": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
 			return redbench.AppendCommand(buf, "GET", key())
 		})
-	case "getset":
-		redbench.Bench("SET", *s, &opts, nil, func(buf []byte) []byte {
+	},
+	"getset": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
 			return redbench.AppendCommand(buf, "GETSET", key(), value)
 		})
-	case "mset":
-		redbench.Bench("MSET", *s, &opts, nil, func(buf []byte) []byte {
+	},
+	"mset": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
 			return redbench.AppendCommand(buf, "MSET", key(), value, key(), value, key(), value)
 		})
-	case "mget":
-		redbench.Bench("MGET", *s, &opts, nil, func(buf []byte) []byte {
+	},
+	"mget": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
 			return redbench.AppendCommand(buf, "MGET", key(), key(), key())
 		})
-	case "incr":
-		redbench.Bench("INCR", *s, &opts, nil, func(buf []byte) []byte {
+	},
+	"incr": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
 			return redbench.AppendCommand(buf, "INCR", numkey())
 		})
-	case "decr":
-		redbench.Bench("DECR", *s, &opts, nil, func(buf []byte) []byte {
+	},
+	"decr": func(name string, addr string, opts *redbench.Options) {
+		redbench.Bench(strings.ToUpper(name), addr, opts, nil, func(buf []byte) []byte {
 			return redbench.AppendCommand(buf, "DECR", numkey())
 		})
-	}
+	},
 }
