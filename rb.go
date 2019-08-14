@@ -7,9 +7,9 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
-	"golang.org/x/time/rate"
-
+	"github.com/juju/ratelimit"
 	"github.com/smallnest/redbench"
 )
 
@@ -48,7 +48,8 @@ func main() {
 	opts.Requests = *n
 	opts.Pipeline = *pipeline
 	if *l > 0 {
-		opts.Limter = rate.NewLimiter(rate.Limit(*l), 1)
+		rate := int64(*l) / 1000
+		opts.Limter = ratelimit.NewBucketWithQuantum(time.Millisecond, rate, rate)
 	}
 
 	*t = strings.ToLower(*t)
